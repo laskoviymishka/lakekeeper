@@ -153,6 +153,8 @@ generate_endpoints! {
         RenameTable(POST, "/catalog/v1/{prefix}/tables/rename"),
         RegisterTable(POST, "/catalog/v1/{prefix}/namespaces/{namespace}/register"),
         ReportMetrics(POST, "/catalog/v1/{prefix}/namespaces/{namespace}/tables/{table}/metrics"),
+        LoadLabels(GET, "/catalog/v1/{prefix}/namespaces/{namespace}/tables/{table}/labels"),
+        UpdateLabels(POST, "/catalog/v1/{prefix}/namespaces/{namespace}/tables/{table}/labels"),
         CommitTransaction(POST, "/catalog/v1/{prefix}/transactions/commit"),
         CreateView(POST, "/catalog/v1/{prefix}/namespaces/{namespace}/views"),
         ListViews(GET, "/catalog/v1/{prefix}/namespaces/{namespace}/views"),

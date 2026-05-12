@@ -28,11 +28,57 @@ pub struct LoadCredentialsResponse {
 }
 
 /// Catalog-scoped labels for API-level metadata enrichment.
-/// Not part of Iceberg table state — ephemeral annotations only.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+///
+/// Labels are NOT part of Iceberg table state — they do not modify metadata.json,
+/// do not create snapshots, and are not visible in table history. They are
+/// API-layer annotations maintained by the catalog.
+///
+/// Split shape (matches Iceberg core `LoadLabelsResponse`):
+/// - `labels` is the flat table-level k/v map.
+/// - `column_labels` is per-column, keyed by Iceberg `field-id` (stable across
+///   schema evolution).
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
 pub struct Labels {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub table: Option<HashMap<String, String>>,
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub labels: HashMap<String, String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub column_labels: Vec<ColumnLabels>,
+}
+
+/// Per-column label entry, keyed by Iceberg field-id.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct ColumnLabels {
+    pub field_id: i32,
+    pub labels: HashMap<String, String>,
+}
+
+/// Update or removal entry in an `UpdateLabelsRequest`.
+///
+/// `field_id` is None for table-scoped entries and Some for column-scoped entries.
+/// `value` is None for removals and Some for updates.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct LabelEntry {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub field_id: Option<i32>,
+    pub key: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub value: Option<String>,
+}
+
+/// Request body for `POST /v1/{prefix}/namespaces/{ns}/tables/{tbl}/labels`.
+///
+/// Updates and removals are applied atomically. Catalog-managed (read-only) keys
+/// are rejected with `403 LabelKeyNotWritable` before any mutation.
+#[derive(Debug, Clone, PartialEq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct UpdateLabelsRequest {
+    #[serde(default)]
+    pub updates: Vec<LabelEntry>,
+    #[serde(default)]
+    pub removals: Vec<LabelEntry>,
 }
 
 /// Result used when a table is successfully loaded.
@@ -221,6 +267,8 @@ impl IntoResponse for CommitTableResponse {
 impl_into_response!(ListTablesResponse);
 #[cfg(feature = "axum")]
 impl_into_response!(LoadCredentialsResponse);
+#[cfg(feature = "axum")]
+impl_into_response!(Labels);
 
 #[cfg(test)]
 #[cfg(feature = "axum")]

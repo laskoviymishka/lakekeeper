@@ -22,6 +22,7 @@ use lakekeeper_io::Location;
 use serde::Serialize;
 use uuid::Uuid;
 pub(crate) mod create_table;
+mod labels;
 mod load_table;
 mod rename_table;
 use super::{
@@ -40,9 +41,10 @@ use crate::{
             types::DropParams,
             v1::{
                 ApiContext, CommitTableRequest, CommitTableResponse, CommitTransactionRequest,
-                CreateTableRequest, DataAccess, ErrorModel, ListTablesQuery, ListTablesResponse,
-                LoadTableResult, LoadTableResultOrNotModified, NamespaceParameters, Prefix,
-                RegisterTableRequest, RenameTableRequest, Result, TableIdent, TableParameters,
+                CreateTableRequest, DataAccess, ErrorModel, Labels, ListTablesQuery,
+                ListTablesResponse, LoadTableResult, LoadTableResultOrNotModified,
+                NamespaceParameters, Prefix, RegisterTableRequest, RenameTableRequest, Result,
+                TableIdent, TableParameters, UpdateLabelsRequest,
                 tables::{DataAccessMode, LoadTableFilters, LoadTableRequest},
             },
         },
@@ -954,6 +956,23 @@ impl<C: CatalogStore, A: Authorizer + Clone, S: SecretStore>
                 Ok(())
             }
         }
+    }
+
+    async fn load_labels(
+        parameters: TableParameters,
+        state: ApiContext<State<A, C, S>>,
+        request_metadata: RequestMetadata,
+    ) -> Result<Labels> {
+        labels::load_labels(parameters, state, request_metadata).await
+    }
+
+    async fn update_labels(
+        parameters: TableParameters,
+        request: UpdateLabelsRequest,
+        state: ApiContext<State<A, C, S>>,
+        request_metadata: RequestMetadata,
+    ) -> Result<Labels> {
+        labels::update_labels(parameters, request, state, request_metadata).await
     }
 }
 

@@ -197,8 +197,11 @@ pub(super) async fn load_table<C: CatalogStore, A: Authorizer + Clone, S: Secret
 
     // Labels from namespace properties (catalog-scoped, not Iceberg table state).
     // Namespace properties with "label." prefix are inherited by all tables in that namespace.
+    // V1 only surfaces table-level labels via this path; per-table column-labels are served
+    // by the dedicated /labels endpoint (see api/iceberg/v1/tables.rs).
     let labels = namespace_labels.map(|lm| iceberg_ext::catalog::rest::table::Labels {
-        table: Some(lm),
+        labels: lm,
+        column_labels: Vec::new(),
     });
 
     let metadata_ref = Arc::new(table_metadata);

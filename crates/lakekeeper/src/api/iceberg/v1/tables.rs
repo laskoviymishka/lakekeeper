@@ -8,7 +8,9 @@ use axum::{
 };
 use http::{HeaderMap, HeaderName, HeaderValue, StatusCode};
 use iceberg::TableIdent;
-use iceberg_ext::catalog::rest::{ETag, LoadCredentialsResponse};
+use iceberg_ext::catalog::rest::{
+    ETag, Labels, LoadCredentialsResponse, UpdateLabelsRequest,
+};
 use serde::Deserialize;
 
 use super::{PageToken, PaginationQuery};
@@ -318,6 +320,25 @@ where
         state: ApiContext<S>,
         request_metadata: RequestMetadata,
     ) -> Result<()>;
+
+    /// Load the current label set for a table in the split shape
+    /// (`labels` + `column-labels`). Labels are catalog-scoped enrichment and do NOT
+    /// modify `metadata.json` — see
+    /// `projects/iceberg-governance/labels/labels-crud-followup.md`.
+    async fn load_labels(
+        parameters: TableParameters,
+        state: ApiContext<S>,
+        request_metadata: RequestMetadata,
+    ) -> Result<Labels>;
+
+    /// Apply label updates and removals atomically. Catalog-managed (read-only) keys
+    /// are rejected with `403 LabelKeyNotWritable` before any mutation.
+    async fn update_labels(
+        parameters: TableParameters,
+        request: UpdateLabelsRequest,
+        state: ApiContext<S>,
+        request_metadata: RequestMetadata,
+    ) -> Result<Labels>;
 }
 
 #[allow(clippy::too_many_lines)]
@@ -538,6 +559,48 @@ pub fn router<I: TablesService<S>, S: crate::api::ThreadSafe>() -> Router<ApiCon
                             DataAccessMode::ClientManaged => DataAccess::not_specified(),
                             DataAccessMode::ServerDelegated(da) => da,
                         },
+                        api_context,
+                        metadata,
+                    )
+                },
+            ),
+        )
+        // /{prefix}/namespaces/{namespace}/tables/{table}/labels
+        // Catalog-scoped labels (NOT part of metadata.json). Split-shape read on GET,
+        // atomic updates+removals on POST. See labels-crud-followup.md for spec.
+        .route(
+            "/{prefix}/namespaces/{namespace}/tables/{table}/labels",
+            get(
+                |Path((prefix, namespace, table)): Path<(Prefix, NamespaceIdentUrl, String)>,
+                 State(api_context): State<ApiContext<S>>,
+                 Extension(metadata): Extension<RequestMetadata>| {
+                    I::load_labels(
+                        TableParameters {
+                            prefix: Some(prefix),
+                            table: TableIdent {
+                                namespace: namespace.into(),
+                                name: normalize_tabular_name(&table),
+                            },
+                        },
+                        api_context,
+                        metadata,
+                    )
+                },
+            )
+            .post(
+                |Path((prefix, namespace, table)): Path<(Prefix, NamespaceIdentUrl, String)>,
+                 State(api_context): State<ApiContext<S>>,
+                 Extension(metadata): Extension<RequestMetadata>,
+                 Json(request): Json<UpdateLabelsRequest>| {
+                    I::update_labels(
+                        TableParameters {
+                            prefix: Some(prefix),
+                            table: TableIdent {
+                                namespace: namespace.into(),
+                                name: normalize_tabular_name(&table),
+                            },
+                        },
+                        request,
                         api_context,
                         metadata,
                     )
@@ -897,6 +960,23 @@ mod test {
             ) -> crate::api::Result<()> {
                 panic!("Should not be called");
             }
+
+            async fn load_labels(
+                _parameters: TableParameters,
+                _state: ApiContext<ThisState>,
+                _request_metadata: RequestMetadata,
+            ) -> crate::api::Result<Labels> {
+                panic!("Should not be called");
+            }
+
+            async fn update_labels(
+                _parameters: TableParameters,
+                _request: UpdateLabelsRequest,
+                _state: ApiContext<ThisState>,
+                _request_metadata: RequestMetadata,
+            ) -> crate::api::Result<Labels> {
+                panic!("Should not be called");
+            }
         }
 
         let api_context = ApiContext {
@@ -1078,6 +1158,23 @@ mod test {
                 _state: ApiContext<ThisState>,
                 _request_metadata: RequestMetadata,
             ) -> crate::api::Result<()> {
+                panic!("Should not be called");
+            }
+
+            async fn load_labels(
+                _parameters: TableParameters,
+                _state: ApiContext<ThisState>,
+                _request_metadata: RequestMetadata,
+            ) -> crate::api::Result<Labels> {
+                panic!("Should not be called");
+            }
+
+            async fn update_labels(
+                _parameters: TableParameters,
+                _request: UpdateLabelsRequest,
+                _state: ApiContext<ThisState>,
+                _request_metadata: RequestMetadata,
+            ) -> crate::api::Result<Labels> {
                 panic!("Should not be called");
             }
         }
